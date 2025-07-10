@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+
+# Neovim
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+logs/
+*.log
+data/secrets/
+data/private/
+
+# Supervisor
+supervisord.log
+supervisord.pid
+
+# Configuration overrides
+config/local.yaml
+config/production.yaml
+config/secrets.yaml
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# NixOS
+result
+result-*
+
+# Testing
+.pytest_cache/
+.coverage
