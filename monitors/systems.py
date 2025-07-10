@@ -1,44 +1,35 @@
 """
-System metrics collection using psutil.
-
-Uses dataclasses to hold actual metric values with clear field names.
+System metrics collection using psutil with serialization support.
 """
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
 import psutil
 
-from monitors.base import BaseMonitor
-
-
-@dataclass
-class BaseMetrics:
-    """Base metrics class with common metadata."""
-
-    enabled: bool = True
-    timestamp: Optional[float] = None
-    hostname: Optional[str] = None
+from monitors.base import BaseMetrics, BaseMonitor
 
 
 @dataclass
 class CPUMetrics(BaseMetrics):
-    """CPU metrics data."""
-
     percent: float = 0.0
-    per_core: List[float] = None
-    cores: int = 0
-    cores_logical: int = 0
+    per_core: List[float] = field(default_factory=list)
+    cores: int | None = 0
+    cores_logical: int | None = 0
     user_time: float = 0.0
     system_time: float = 0.0
     idle_time: float = 0.0
     iowait_time: float = 0.0
+    enabled: bool = True
+    timestamp: Optional[float] = None
+    hostname: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
 class MemoryMetrics(BaseMetrics):
-    """Memory metrics data."""
-
     total: int = 0
     available: int = 0
     used: int = 0
@@ -46,69 +37,102 @@ class MemoryMetrics(BaseMetrics):
     percent: float = 0.0
     buffers: int = 0
     cached: int = 0
-    # Swap
     swap_total: int = 0
     swap_used: int = 0
     swap_free: int = 0
     swap_percent: float = 0.0
+    enabled: bool = True
+    timestamp: Optional[float] = None
+    hostname: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
 class DiskMetrics(BaseMetrics):
-    """Disk metrics data."""
-
-    # Usage by mount point (stored as dict)
-    usage: Dict[str, Dict[str, Any]] = None
-    # I/O totals
+    usage: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     read_count: int = 0
     write_count: int = 0
     read_bytes: int = 0
     write_bytes: int = 0
     read_time: int = 0
     write_time: int = 0
+    enabled: bool = True
+    timestamp: Optional[float] = None
+    hostname: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
 class NetworkMetrics(BaseMetrics):
-    """Network metrics data."""
-
-    # Per interface (stored as dict)
-    interfaces: Dict[str, Dict[str, int]] = None
-    # Totals
+    interfaces: Dict[str, Dict[str, int]] = field(default_factory=dict)
     total_bytes_sent: int = 0
     total_bytes_recv: int = 0
     total_packets_sent: int = 0
     total_packets_recv: int = 0
+    enabled: bool = True
+    timestamp: Optional[float] = None
+    hostname: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
 class LoadMetrics(BaseMetrics):
-    """System load metrics data."""
-
     load_1min: float = 0.0
     load_5min: float = 0.0
     load_15min: float = 0.0
+    enabled: bool = True
+    timestamp: Optional[float] = None
+    hostname: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
 class SystemMetrics(BaseMetrics):
-    """Complete system metrics collection."""
+    cpu: Optional[CPUMetrics] = None
+    memory: Optional[MemoryMetrics] = None
+    disk: Optional[DiskMetrics] = None
+    network: Optional[NetworkMetrics] = None
+    load: Optional[LoadMetrics] = None
+    enabled: bool = True
+    timestamp: Optional[float] = None
+    hostname: Optional[str] = None
 
-    cpu: CPUMetrics = None
-    memory: MemoryMetrics = None
-    disk: DiskMetrics = None
-    network: NetworkMetrics = None
-    load: LoadMetrics = None
+    def to_dict(self) -> Dict[str, Any]:
+        """Custom serialization to handle nested metrics."""
+        result = {
+            "enabled": self.enabled,
+            "timestamp": self.timestamp,
+            "hostname": self.hostname,
+            "metric_type": self.__class__.__name__,
+        }
+
+        if self.cpu:
+            result["cpu"] = self.cpu.to_dict()
+        if self.memory:
+            result["memory"] = self.memory.to_dict()
+        if self.disk:
+            result["disk"] = self.disk.to_dict()
+        if self.network:
+            result["network"] = self.network.to_dict()
+        if self.load:
+            result["load"] = self.load.to_dict()
+
+        return result
 
 
 class SystemMonitor(BaseMonitor):
-    """Monitor for local system metrics using psutil."""
-
     def __init__(self, name: str):
         super().__init__(name)
 
     def collect_metrics(self) -> SystemMetrics:
-        """Collect all system metrics into structured dataclasses."""
         import time
 
         # Create main metrics container
@@ -124,8 +148,6 @@ class SystemMonitor(BaseMonitor):
         return metrics
 
     def collect_cpu_metrics(self) -> CPUMetrics:
-        """Collect CPU metrics."""
-        # Get CPU percentage with 1 second interval
         cpu_percent = psutil.cpu_percent(interval=1)
         per_core = psutil.cpu_percent(interval=None, percpu=True)
         cpu_times = psutil.cpu_times()
@@ -142,7 +164,6 @@ class SystemMonitor(BaseMonitor):
         )
 
     def collect_memory_metrics(self) -> MemoryMetrics:
-        """Collect memory metrics."""
         memory = psutil.virtual_memory()
         swap = psutil.swap_memory()
 
@@ -161,8 +182,6 @@ class SystemMonitor(BaseMonitor):
         )
 
     def collect_disk_metrics(self) -> DiskMetrics:
-        """Collect disk metrics."""
-        # Collect disk usage
         partitions = psutil.disk_partitions()
         usage_data = {}
 
@@ -182,7 +201,6 @@ class SystemMonitor(BaseMonitor):
             except (PermissionError, OSError):
                 continue
 
-        # Collect disk I/O
         disk_io = psutil.disk_io_counters()
         if disk_io:
             return DiskMetrics(
@@ -198,7 +216,6 @@ class SystemMonitor(BaseMonitor):
             return DiskMetrics(usage=usage_data)
 
     def collect_network_metrics(self) -> NetworkMetrics:
-        """Collect network metrics."""
         net_io = psutil.net_io_counters(pernic=True)
         interfaces_data = {}
 
@@ -208,7 +225,6 @@ class SystemMonitor(BaseMonitor):
         total_packets_recv = 0
 
         for interface, stats in net_io.items():
-            # Skip loopback
             if interface.startswith("lo"):
                 continue
 
@@ -223,7 +239,6 @@ class SystemMonitor(BaseMonitor):
                 "dropout": stats.dropout,
             }
 
-            # Add to totals
             total_sent += stats.bytes_sent
             total_recv += stats.bytes_recv
             total_packets_sent += stats.packets_sent
@@ -238,12 +253,10 @@ class SystemMonitor(BaseMonitor):
         )
 
     def collect_load_metrics(self) -> LoadMetrics:
-        """Collect system load metrics."""
         try:
             load_avg = psutil.getloadavg()
             return LoadMetrics(
                 load_1min=load_avg[0], load_5min=load_avg[1], load_15min=load_avg[2]
             )
         except AttributeError:
-            # getloadavg not available on all platforms
             return LoadMetrics()
