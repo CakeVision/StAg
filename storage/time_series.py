@@ -5,40 +5,11 @@ Time-series storage with configurable time buckets for historical metrics.
 import threading
 import time
 from collections import defaultdict
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
+from config.time_series import AggregationMethod, TimeSeriesConfig
 from logger.json_logger import LoggerManager
-
-
-class AggregationMethod(Enum):
-    LAST = "last"
-    FIRST = "first"
-    AVG = "avg"
-    MIN = "min"
-    MAX = "max"
-    COUNT = "count"
-
-
-@dataclass
-class TimeSeriesConfig:
-    bucket_size_seconds: int = 60
-    retention_seconds: int = 3600
-    cleanup_interval_seconds: int = 300
-    max_buckets_per_target: int = 1000
-    default_aggregation: AggregationMethod = AggregationMethod.LAST
-
-
-@dataclass
-class MetricBucket:
-    bucket_time: float
-    target_name: str
-    target_type: str
-    metrics: Dict[str, Any]
-    sample_count: int = 1
-    first_timestamp: Optional[float] = None
-    last_timestamp: Optional[float] = None
+from monitors.time_metric_bucket import TimeMetricBucket
 
 
 class TimeSeriesStorage:
@@ -52,8 +23,8 @@ class TimeSeriesStorage:
             else None
         )
 
-        # Storage: {target_name: {bucket_time: MetricBucket}}
-        self._buckets: Dict[str, Dict[float, MetricBucket]] = defaultdict(dict)
+        # Storage: {target_name: {bucket_time: TimeMetricBucket}}
+        self._buckets: Dict[str, Dict[float, TimeMetricBucket]] = defaultdict(dict)
         self._lock: threading.RLock = threading.RLock()
 
         # Cleanup management
